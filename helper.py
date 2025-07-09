@@ -45,7 +45,7 @@ def create_wordcloud(selected_user, df):
 
     temp = df[df['user'] != 'group_notification']
     temp = temp[temp['message'] != '<Media omitted>\n']
-    # ye code saare stop words ko remove ker raha hai
+    # This code is removing all stop words
     def remove_stop_words(message):
         y=[]
         for word in message.lower().split():
@@ -55,7 +55,7 @@ def create_wordcloud(selected_user, df):
 
     wc = WordCloud(width=500, height=500, min_font_size=10,background_color='white')
     temp['message'] = temp['message'].apply(remove_stop_words)
-    df_wc = wc.generate(temp['message'].str.cat(sep=" "))
+    df_wc = wc.generate(temp['message'].dropna().astype(str).str.cat(sep=" "))
     return df_wc
 
 def most_common_words(selected_user,df):
@@ -120,6 +120,6 @@ def activity_heatmap(selected_user,df):
         df = df[df['user'] == selected_user]
 
     user_heatmap = df.pivot_table(index='day_name', columns='period',values='message',aggfunc='count').fillna(0)
-    return user_heatmaps
+    return user_heatmap
 
     
