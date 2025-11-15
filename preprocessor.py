@@ -2,37 +2,45 @@ import re
 import pandas as pd
 
 def preprocess(data):
-    # ye function palat krke hame dataframe return krga
-    pattern = '\d{1,2}/\d{1,2}/\d{2,4},\s\d{1,2}:\d{2}\s-\s'
+    # Universal WhatsApp regex (Android + iPhone + 12/24 hr)
+    pattern = r'(\[?\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4},\s\d{1,2}:\d{2}(?:\s?[APMapm]{2})?\]?)\s[-\]]\s'
 
-    messages = re.split(pattern, data)[1:]
-    dates = re.findall(pattern, data)
+    split_data = re.split(pattern, data)[1:]
 
-    df = pd.DataFrame({'user_message': messages, 'message_date': dates})
-    # convert message_date type
-    df['message_date'] = pd.to_datetime(df['message_date'], format='%d/%m/%Y, %H:%M - ')
-
-    df.rename(columns={'message_date': 'date'}, inplace=True)
-
+    dates = []
     users = []
     messages = []
-    for message in df['user_message']:
-        entry = re.split('([\w\W]+?):\s', message)
-        if entry[1:]:  # user name
-            users.append(entry[1])
-            messages.append(" ".join(entry[2:]))
+
+    # Loop through date + message pairs
+    for i in range(0, len(split_data), 2):
+        date = split_data[i]
+        msg_block = split_data[i+1].strip()
+
+        # Detect user : message
+        if ": " in msg_block:
+            user, msg = msg_block.split(": ", 1)
         else:
-            users.append('group_notification')
-            messages.append(entry[0])
+            user = "group_notification"
+            msg = msg_block
 
-    df['user'] = users
-    df['message'] = messages
-    df.drop(columns=['user_message'], inplace=True)
+        dates.append(date)
+        users.append(user)
+        messages.append(msg)
 
-    df['only_date'] = df['date'].dt.date
+    df = pd.DataFrame({
+        "date_raw": dates,
+        "user": users,
+        "message": messages
+    })
+
+    # Flexible date parsing
+    df["date"] = pd.to_datetime(df["date_raw"].str.replace('[\[\]]', '', regex=True),
+                                errors="coerce",
+                                dayfirst=True)
+
+    # Extract features
     df['only_date'] = df['date'].dt.date
     df['year'] = df['date'].dt.year
-    df['month_num'] = df['date'].dt.month
     df['month_num'] = df['date'].dt.month
     df['month'] = df['date'].dt.month_name()
     df['day'] = df['date'].dt.day
@@ -40,15 +48,16 @@ def preprocess(data):
     df['hour'] = df['date'].dt.hour
     df['minute'] = df['date'].dt.minute
 
+    # Time period range
     period = []
-    for hour in df[['day_name','hour']]['hour']:
+    for hour in df['hour']:
         if hour == 23:
-            period.append(str(hour) + "-" + str('00'))
+            period.append("23-00")
         elif hour == 0:
-            period.append(str('00') + "-" + str(hour+1))
+            period.append("00-01")
         else:
-            period.append(str(hour)+ "-" + str(hour+1))
+            period.append(f"{hour:02}-{hour+1:02}")
 
-    df['period'] = period
+    df["period"] = period
 
     return df
